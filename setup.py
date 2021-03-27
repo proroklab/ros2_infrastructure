@@ -20,6 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            "mocap_static_remapping = infrastructure.mocap_static_remapping:main",
         ],
     },
 )
