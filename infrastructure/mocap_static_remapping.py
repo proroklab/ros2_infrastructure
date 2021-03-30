@@ -9,7 +9,7 @@ import functools
 class MocapStaticRemap(Node):
     def __init__(self):
         super().__init__("mocap_static_remapping")
-
+        print(get_uuids())
         self.poses_repubs = {}
         for uuid in get_uuids():
             self.get_logger().info(f"Remap {uuid}")
