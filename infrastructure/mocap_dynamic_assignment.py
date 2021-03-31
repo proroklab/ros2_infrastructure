@@ -9,7 +9,6 @@ from rclpy.publisher import Publisher
 from scipy.spatial.transform import Rotation as R
 from geometry_msgs.msg import Pose, PoseStamped
 from infrastructure.agent_util import get_uuids
-import functools
 from typing import Dict
 
 
@@ -24,24 +23,58 @@ def pose_to_r(pose) -> R:
 
 
 class MocapDynamicAssignment(Node):
-    POSE_ASSIGNMENT_FREQ = 100  # Hz
-
     def __init__(self):
-        super().__init__("mocap_static_remap")
+        super().__init__("mocap_dynamic_assignment")
 
         self.real_poses: Dict[str, PoseStamped] = {}
-        self.mocap_poses: Dict[str, PoseStamped] = {}
         self.poses_repubs: Dict[str, Publisher] = {}
-        for uuid in get_uuids():
+
+        self.declare_parameter(
+            "n_agents",
+            value=1,
+        )
+        n_agents = self.get_parameter(f"n_agents")._value
+        assert n_agents > 0
+        self.get_logger().info(f"nagents {n_agents}")
+
+        while True:
+            all_agents = get_uuids()
+            if len(all_agents) == n_agents:
+                break
+
+        for uuid in all_agents:
             self.get_logger().info(f"Remap {uuid}")
 
-            self.real_poses[uuid] = PoseStamped()
-            self.mocap_poses[uuid] = PoseStamped()
+            self.declare_parameter(
+                f"{uuid}_initial_position",
+                value=[0.0, 0.0, 0.0],
+            )
+            self.declare_parameter(
+                f"{uuid}_initial_orientation",
+                value=[0.0, 0.0, 0.0],
+            )
+
+            initial_position = self.get_parameter(f"{uuid}_initial_position")._value
+            initial_orientation = R.from_euler(
+                "xyz", self.get_parameter(f"{uuid}_initial_orientation")._value
+            )
+
+            initial_pose = PoseStamped()
+            initial_pose.header.stamp = self.get_clock().now().to_msg()
+            initial_pose.pose.position.x = initial_position[0]
+            initial_pose.pose.position.y = initial_position[1]
+            initial_pose.pose.position.z = initial_position[2]
+            initial_orientation_quat = initial_orientation.as_quat()
+            initial_pose.pose.orientation.x = initial_orientation_quat[0]
+            initial_pose.pose.orientation.y = initial_orientation_quat[1]
+            initial_pose.pose.orientation.z = initial_orientation_quat[2]
+            initial_pose.pose.orientation.w = initial_orientation_quat[3]
+            self.real_poses[uuid] = initial_pose
 
             self.create_subscription(
                 PoseStamped,
                 f"/motion_capture_server/rigid_bodies/{uuid}/pose",
-                functools.partial(self.update_pose, uuid),
+                self.update_pose,
                 qos_profile=qos_profile_sensor_data,
             )
 
@@ -49,20 +82,16 @@ class MocapDynamicAssignment(Node):
                 PoseStamped, f"/{uuid}/pose", qos_profile=qos_profile_sensor_data
             )
 
-        self.create_timer(1 / self.POSE_ASSIGNMENT_FREQ, self.compute_assignment)
-
-    def compute_assignment(self):
-        """TODO:
-        Compute correct assignment given the last known pose in real_poses
-        and the poses most recently updated from the mocap system in mocap_poses
-        """
-        for uuid, pose in self.mocap_poses.items():
-            self.real_poses[uuid] = pose
-            self.poses_repubs[uuid].publish(pose)
-
-    def update_pose(self, uuid, pose):
-        """ Poses are updated asynchronously and assigned synchronously in the timer callback """
-        self.mocap_poses[uuid] = pose
+    def update_pose(self, pose):
+        dists = []
+        dists_uuids = []
+        for uuid, real_pose in self.real_poses.items():
+            dist = np.linalg.norm(pose_to_p(real_pose.pose) - pose_to_p(pose.pose))
+            dists.append(dist)
+            dists_uuids.append(uuid)
+        index_min = np.argmin(dists)
+        self.real_poses[dists_uuids[index_min]] = pose
+        self.poses_repubs[dists_uuids[index_min]].publish(pose)
 
 
 def main(args=None):
