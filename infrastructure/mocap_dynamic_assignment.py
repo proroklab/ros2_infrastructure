@@ -23,6 +23,8 @@ def pose_to_r(pose) -> R:
 
 
 class MocapDynamicAssignment(Node):
+    DIST_REJECT_POSE = 1.0  # reject poses if their distance is further away than this
+
     def __init__(self):
         super().__init__("mocap_dynamic_assignment")
 
@@ -87,8 +89,19 @@ class MocapDynamicAssignment(Node):
         dists_uuids = []
         for uuid, real_pose in self.real_poses.items():
             dist = np.linalg.norm(pose_to_p(real_pose.pose) - pose_to_p(pose.pose))
-            dists.append(dist)
+            if dist > self.DIST_REJECT_POSE:
+                self.get_logger().debug(f"Reject pose at dist {dist} to {uuid}")
+                continue
+
+            dist_rot = (
+                pose_to_r(real_pose.pose) * pose_to_r(pose.pose).inv()
+            ).magnitude()
+            dists.append(dist + dist_rot / 10)
             dists_uuids.append(uuid)
+
+        if len(dists) < 1:
+            return
+
         index_min = np.argmin(dists)
         self.real_poses[dists_uuids[index_min]] = pose
         self.poses_repubs[dists_uuids[index_min]].publish(pose)
