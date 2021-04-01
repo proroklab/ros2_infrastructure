@@ -77,7 +77,7 @@ class MocapDynamicAssignment(Node):
             initial_pose.pose.orientation.w = initial_orientation_quat[3]
             self.real_poses[uuid] = initial_pose
 
-            rigid_body_name = self.get_parameter(f"{uuid}_rigid_body_label")
+            rigid_body_name = self.get_parameter(f"{uuid}_rigid_body_label")._value
             self.create_subscription(
                 PoseStamped,
                 f"/motion_capture_server/rigid_bodies/{rigid_body_name}/pose",
