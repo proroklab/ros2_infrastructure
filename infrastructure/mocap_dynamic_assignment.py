@@ -1,6 +1,6 @@
 import rclpy
 import socket
-import struct
+import time
 import numpy as np
 import datetime
 from rclpy.node import Node
@@ -16,10 +16,14 @@ def pose_to_p(pose):
     return np.array([pose.position.x, pose.position.y, 0.0])
 
 
-def pose_to_r(pose) -> R:
-    return R.from_quat(
+def pose_to_q(pose) -> np.ndarray:
+    return np.array(
         [pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w]
     )
+
+
+def pose_to_r(pose) -> R:
+    return R.from_quat(pose_to_q(pose))
 
 
 class MocapDynamicAssignment(Node):
@@ -27,9 +31,6 @@ class MocapDynamicAssignment(Node):
 
     def __init__(self):
         super().__init__("mocap_dynamic_assignment")
-
-        self.real_poses: Dict[str, PoseStamped] = {}
-        self.poses_repubs: Dict[str, Publisher] = {}
 
         self.declare_parameter(
             "n_agents",
@@ -40,11 +41,20 @@ class MocapDynamicAssignment(Node):
         self.get_logger().info(f"nagents {n_agents}")
 
         while True:
-            all_agents = get_uuids()
-            if len(all_agents) == n_agents:
+            self.all_uuids = get_uuids()
+            self.get_logger().info(
+                f"Discovered {len(self.all_uuids)} agents (expecting {n_agents})"
+            )
+            if len(self.all_uuids) == n_agents:
                 break
+            self.get_logger().info("Retrying...")
+            time.sleep(1)
 
-        for uuid in all_agents:
+        self.real_positions = np.zeros((n_agents, 3))
+        self.real_orientations = np.zeros((n_agents, 4))
+
+        self.poses_repubs = []
+        for i, uuid in enumerate(self.all_uuids):
             self.get_logger().info(f"Remap {uuid}")
 
             self.declare_parameter(
@@ -65,17 +75,8 @@ class MocapDynamicAssignment(Node):
                 "xyz", self.get_parameter(f"{uuid}_initial_orientation")._value
             )
 
-            initial_pose = PoseStamped()
-            initial_pose.header.stamp = self.get_clock().now().to_msg()
-            initial_pose.pose.position.x = initial_position[0]
-            initial_pose.pose.position.y = initial_position[1]
-            initial_pose.pose.position.z = initial_position[2]
-            initial_orientation_quat = initial_orientation.as_quat()
-            initial_pose.pose.orientation.x = initial_orientation_quat[0]
-            initial_pose.pose.orientation.y = initial_orientation_quat[1]
-            initial_pose.pose.orientation.z = initial_orientation_quat[2]
-            initial_pose.pose.orientation.w = initial_orientation_quat[3]
-            self.real_poses[uuid] = initial_pose
+            self.real_positions[i] = np.array(initial_position)
+            self.real_orientations[i] = initial_orientation.as_quat()
 
             rigid_body_name = self.get_parameter(f"{uuid}_rigid_body_label")._value
             self.create_subscription(
@@ -85,31 +86,34 @@ class MocapDynamicAssignment(Node):
                 qos_profile=qos_profile_sensor_data,
             )
 
-            self.poses_repubs[uuid] = self.create_publisher(
-                PoseStamped, f"/{uuid}/pose", qos_profile=qos_profile_sensor_data
+            self.poses_repubs.append(
+                self.create_publisher(
+                    PoseStamped, f"/{uuid}/pose", qos_profile=qos_profile_sensor_data
+                )
             )
 
     def update_pose(self, pose):
-        dists = []
-        dists_uuids = []
-        for uuid, real_pose in self.real_poses.items():
-            dist = np.linalg.norm(pose_to_p(real_pose.pose) - pose_to_p(pose.pose))
-            if dist > self.DIST_REJECT_POSE:
-                self.get_logger().debug(f"Reject pose at dist {dist} to {uuid}")
-                continue
+        position = pose_to_p(pose.pose)
+        dists = np.linalg.norm(self.real_positions - position, axis=1)
 
-            dist_rot = (
-                pose_to_r(real_pose.pose) * pose_to_r(pose.pose).inv()
-            ).magnitude()
-            dists.append(dist + dist_rot / 10)
-            dists_uuids.append(uuid)
+        # distance between two quats: https://math.stackexchange.com/a/90098
+        orientation = pose_to_q(pose.pose)
+        quat_norm = np.sum(self.real_orientations * orientation, axis=1)
+        # clip the norm since it can be slightly outside this interval if the angles are identical
+        # due to floating point arithmetic
+        rot_dist = np.arccos(2 * np.clip(quat_norm, 0, 1) ** 2 - 1)
 
-        if len(dists) < 1:
+        cost = dists + rot_dist / 10
+        index_min_cost = np.argmin(cost)
+        if dists[index_min_cost] > self.DIST_REJECT_POSE:
+            self.get_logger().debug(
+                f"Reject pose at for dist {dists[index_min_cost]} to {self.all_uuids[index_min_cost]}"
+            )
             return
 
-        index_min = np.argmin(dists)
-        self.real_poses[dists_uuids[index_min]] = pose
-        self.poses_repubs[dists_uuids[index_min]].publish(pose)
+        self.real_positions[index_min_cost] = position
+        self.real_orientations[index_min_cost] = orientation[0]
+        self.poses_repubs[index_min_cost].publish(pose)
 
 
 def main(args=None):
