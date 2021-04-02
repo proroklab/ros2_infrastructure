@@ -9,7 +9,7 @@ from rclpy.publisher import Publisher
 from scipy.spatial.transform import Rotation as R
 from geometry_msgs.msg import Pose, PoseStamped
 from infrastructure.agent_util import get_uuids
-from typing import Dict
+from typing import Dict, List
 
 
 def pose_to_p(pose):
@@ -53,7 +53,7 @@ class MocapDynamicAssignment(Node):
         self.real_positions = np.zeros((n_agents, 3))
         self.real_orientations = np.zeros((n_agents, 4))
 
-        self.poses_repubs = []
+        self.poses_repubs: List[Publisher] = []
         for i, uuid in enumerate(self.all_uuids):
             self.get_logger().info(f"Remap {uuid}")
 
