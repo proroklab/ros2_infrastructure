@@ -33,28 +33,28 @@ class MocapDynamicAssignment(Node):
         super().__init__("mocap_dynamic_assignment")
 
         self.declare_parameter(
-            "n_agents",
-            value=1,
+            "uuids",
+            value=[],
         )
-        n_agents = self.get_parameter(f"n_agents")._value
-        assert n_agents > 0
-        self.get_logger().info(f"nagents {n_agents}")
+        expected_uuids = self.get_parameter(f"uuids").value
+        assert len(expected_uuids) > 0
+        self.get_logger().info(f"Expect UUIDs {expected_uuids}")
 
         while True:
-            self.all_uuids = get_uuids()
+            self.uuids = get_uuids()
             self.get_logger().info(
-                f"Discovered {len(self.all_uuids)} agents (expecting {n_agents})"
+                f"Discovered {self.uuids} (expecting {expected_uuids})"
             )
-            if len(self.all_uuids) == n_agents:
+            if set(self.uuids) == set(expected_uuids):
                 break
             self.get_logger().info("Retrying...")
             time.sleep(1)
 
-        self.real_positions = np.zeros((n_agents, 3))
-        self.real_orientations = np.zeros((n_agents, 4))
+        self.real_positions = np.zeros((len(self.uuids), 3))
+        self.real_orientations = np.zeros((len(self.uuids), 4))
 
         self.poses_repubs: List[Publisher] = []
-        for i, uuid in enumerate(self.all_uuids):
+        for i, uuid in enumerate(self.uuids):
             self.get_logger().info(f"Remap {uuid}")
 
             self.declare_parameter(
@@ -70,15 +70,15 @@ class MocapDynamicAssignment(Node):
                 value=None,
             )
 
-            initial_position = self.get_parameter(f"{uuid}_initial_position")._value
+            initial_position = self.get_parameter(f"{uuid}_initial_position").value
             initial_orientation = R.from_euler(
-                "xyz", self.get_parameter(f"{uuid}_initial_orientation")._value
+                "xyz", self.get_parameter(f"{uuid}_initial_orientation").value
             )
 
             self.real_positions[i] = np.array(initial_position)
             self.real_orientations[i] = initial_orientation.as_quat()
 
-            rigid_body_name = self.get_parameter(f"{uuid}_rigid_body_label")._value
+            rigid_body_name = self.get_parameter(f"{uuid}_rigid_body_label").value
             self.create_subscription(
                 PoseStamped,
                 f"/motion_capture_server/rigid_bodies/{rigid_body_name}/pose",
@@ -107,7 +107,7 @@ class MocapDynamicAssignment(Node):
         index_min_cost = np.argmin(cost)
         if dists[index_min_cost] > self.DIST_REJECT_POSE:
             self.get_logger().debug(
-                f"Reject pose at for dist {dists[index_min_cost]} to {self.all_uuids[index_min_cost]}"
+                f"Reject pose at for dist {dists[index_min_cost]} to {self.uuids[index_min_cost]}"
             )
             return
 
