@@ -105,11 +105,11 @@ class MocapDynamicAssignment(Node):
 
         cost = dists + rot_dist / 10
         index_min_cost = np.argmin(cost)
-        if dists[index_min_cost] > self.DIST_REJECT_POSE:
-            self.get_logger().debug(
-                f"Reject pose at for dist {dists[index_min_cost]} to {self.uuids[index_min_cost]}"
-            )
-            return
+        # if dists[index_min_cost] > self.DIST_REJECT_POSE:
+        #     self.get_logger().debug(
+        #         f"Reject pose at for dist {dists[index_min_cost]} to {self.uuids[index_min_cost]}"
+        #     )
+        #     return
 
         self.real_positions[index_min_cost] = position
         self.real_orientations[index_min_cost] = orientation[0]
