@@ -62,7 +62,7 @@ class MocapVelocityEstimator(Node):
             if len(self.velocity_buffer[uuid]) > self.VELOCITY_RINGBUFFER_SIZE:
                 self.velocity_buffer[uuid].pop(0)
 
-            vel = np.median(self.velocity_buffer[uuid], axis=0)
+            vel = np.mean(self.velocity_buffer[uuid], axis=0)
             vel_twist = TwistStamped(header=pose.header)
             vel_twist.twist.linear.x = vel[0]
             vel_twist.twist.linear.y = vel[1]
