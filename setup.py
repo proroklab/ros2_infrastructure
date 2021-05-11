@@ -22,6 +22,7 @@ setup(
         'console_scripts': [
             "mocap_static_remapping = infrastructure.mocap_static_remapping:main",
             "mocap_dynamic_assignment = infrastructure.mocap_dynamic_assignment:main",
+            "mocap_velocity_estimator = infrastructure.mocap_velocity_estimator:main",
         ],
     },
 )
