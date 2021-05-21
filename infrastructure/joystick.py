@@ -9,6 +9,7 @@ from ctrl_msgs.msg import RoboMasterControl
 import os
 import struct
 import array
+import numpy as np
 import fcntl
 from fcntl import ioctl
 
@@ -152,6 +153,7 @@ class Joystick(Node):
         self.create_timer(1 / 100, self.run)
 
         self.ctrl = RoboMasterControl()
+        self.multiplier = 1.0
 
     def run(self):
         evbuf = self.jsdev.read(8)
@@ -167,6 +169,12 @@ class Joystick(Node):
                     self.button_states[button] = value
                     if value:
                         self.get_logger().debug("%s pressed" % (button))
+                        if button == "tr":
+                            self.multiplier += 0.5
+                        if button == "tl":
+                            self.multiplier -= 0.5
+                        self.multiplier = np.clip(self.multiplier, 0.5, 3.0)
+                        self.get_logger().info(f"multiplier is {self.multiplier}")
                     else:
                         self.get_logger().debug("%s released" % (button))
 
@@ -177,9 +185,9 @@ class Joystick(Node):
                     self.axis_states[axis] = fvalue
                     self.get_logger().debug("%s: %.3f" % (axis, fvalue))
                     if axis == "x":
-                        self.ctrl.vx = fvalue * 2
+                        self.ctrl.vy = fvalue * self.multiplier
                     elif axis == "y":
-                        self.ctrl.vy = -fvalue * 2
+                        self.ctrl.vx = -fvalue * self.multiplier
                     elif axis == "rx":
                         self.ctrl.omega = fvalue
 
