@@ -5,7 +5,8 @@
 
 import rclpy
 from rclpy.node import Node
-from ctrl_msgs.msg import RoboMasterControl
+from rclpy.qos import qos_profile_sensor_data
+from geometry_msgs.msg import Twist
 import os
 import struct
 import array
@@ -148,11 +149,11 @@ class Joystick(Node):
         self.get_logger().info(f"{num_axes} axes found: {axes}")
         self.get_logger().info(f"{num_buttons} buttons found: {buttons}")
 
-        self.pub_vel = self.create_publisher(RoboMasterControl, f"cmd_vel", 1)
+        self.pub_vel = self.create_publisher(Twist, f"cmd_vel", qos_profile_sensor_data)
 
         self.create_timer(1 / 100, self.run)
 
-        self.ctrl = RoboMasterControl()
+        self.ctrl = Twist()
         self.multiplier = 1.0
 
     def run(self):
@@ -185,11 +186,11 @@ class Joystick(Node):
                     self.axis_states[axis] = fvalue
                     self.get_logger().debug("%s: %.3f" % (axis, fvalue))
                     if axis == "x":
-                        self.ctrl.vy = fvalue * self.multiplier
+                        self.ctrl.linear.x = fvalue * self.multiplier
                     elif axis == "y":
-                        self.ctrl.vx = -fvalue * self.multiplier
+                        self.ctrl.linear.y = -fvalue * self.multiplier
                     elif axis == "rx":
-                        self.ctrl.omega = fvalue
+                        self.ctrl.angular.z = fvalue
 
         self.pub_vel.publish(self.ctrl)
 
