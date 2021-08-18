@@ -2,7 +2,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from geometry_msgs.msg import PoseStamped, TwistStamped
-from infrastructure.agent_util import get_uuids
+from infrastructure.agent_util import get_uuids_fast
 import functools
 import datetime
 import numpy as np
@@ -33,7 +33,12 @@ class MocapVelocityEstimator(Node):
         self.vel_pubs = {}
         self.last_poses = {}
         self.velocity_buffer = {}
-        for uuid in get_uuids():
+        self.timer_refresh_pose_subs = self.create_timer(2.0, self.update_subscriptions)
+
+    def update_subscriptions(self):
+        for uuid in get_uuids_fast(self):
+            if uuid in self.last_poses.keys():
+                continue
             self.get_logger().info(f"Estimate {uuid}")
             self.create_subscription(
                 PoseStamped,

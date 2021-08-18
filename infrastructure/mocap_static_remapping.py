@@ -2,16 +2,21 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from geometry_msgs.msg import PoseStamped
-from infrastructure.agent_util import get_uuids
+from infrastructure.agent_util import get_uuids_fast
 import functools
 
 
 class MocapStaticRemap(Node):
     def __init__(self):
         super().__init__("mocap_static_remapping")
-        print(get_uuids())
         self.poses_repubs = {}
-        for uuid in get_uuids():
+        self.timer_refresh_pose_subs = self.create_timer(2.0, self.update_subscriptions)
+
+    def update_subscriptions(self):
+        for uuid in get_uuids_fast(self):
+            if uuid in self.poses_repubs.keys():
+                continue
+
             self.get_logger().info(f"Remap {uuid}")
             self.create_subscription(
                 PoseStamped,
