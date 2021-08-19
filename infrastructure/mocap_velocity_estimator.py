@@ -26,7 +26,7 @@ def pose_to_t(pose):
 
 
 class MocapVelocityEstimator(Node):
-    VELOCITY_RINGBUFFER_SIZE = 20
+    VELOCITY_RINGBUFFER_SIZE = 5
 
     def __init__(self):
         super().__init__("mocap_velocity_estimator")
