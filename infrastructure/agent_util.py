@@ -12,7 +12,7 @@ def get_uuids_fast(node: rclpy.node.Node) -> List[str]:
 
     uuids = []
     for topic, _ in res:
-        match = re.compile(r"/(turtlebot|robomaster|minicar|crazyflie)_\d+").match(topic)
+        match = re.compile(r"/(turtlebot|robomaster|minicar|crazyflie|fpvquad)_\d+").match(topic)
         if match:
             uuid = match.group().replace("/", "")
             if uuid not in uuids:
