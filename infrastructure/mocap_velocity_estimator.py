@@ -59,7 +59,7 @@ class MocapVelocityEstimator(Node):
         if self.last_poses[uuid] is not None:
             # assert pose_time > self.last_pos_time
             dt = (pose_to_t(pose) - pose_to_t(self.last_poses[uuid])).total_seconds()
-            v_lin = (pose_to_p(self.last_poses[uuid].pose) - pose_to_p(pose.pose)) / dt
+            v_lin = (pose_to_p(pose.pose) - pose_to_p(self.last_poses[uuid].pose)) / dt
             v_ang = (
                 pose_to_r(self.last_poses[uuid].pose) * pose_to_r(pose.pose).inv()
             ).as_euler("xyz") / dt
